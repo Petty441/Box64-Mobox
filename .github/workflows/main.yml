@@ -1,0 +1,44 @@
+name: Build Box64
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up pacman environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y arch-install-scripts
+        sudo mkdir -p /mnt/chroot
+        sudo pacstrap /mnt/chroot base base-devel
+        sudo arch-chroot /mnt/chroot pacman-key --init
+        sudo arch-chroot /mnt/chroot pacman-key --populate archlinux
+        sudo arch-chroot /mnt/chroot pacman -Sy
+
+    - name: Install dependencies
+      run: |
+        sudo arch-chroot /mnt/chroot pacman -S --noconfirm git cmake make
+
+    - name: Clone Box64 repository
+      run: |
+        sudo arch-chroot /mnt/chroot git clone https://github.com/ptitSeb/box64 /root/box64
+
+    - name: Apply patch
+      run: |
+        sudo arch-chroot /mnt/chroot sh -c "cd /root/box64 && git apply /root/github/workspace/patches/box64-setdirs.patch"
+
+    - name: Build Box64
+      run: |
+        sudo arch-chroot /mnt/chroot sh -c "mkdir -p /root/box64/build && cd /root/box64/build && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DARM_DYNAREC=ON -DBAD_SIGNAL=ON && make"
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: box64
+        path: /mnt/chroot/root/box64/build/*
+        
